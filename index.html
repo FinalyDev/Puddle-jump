@@ -149,6 +149,22 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex]:focus
 .finish .missed{font-family:var(--reader);font-size:1.25rem}
 .closet{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .closet span{width:30px;height:30px;border-radius:8px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.15)}
+/* Rainbows */
+.progress{height:12px;border-radius:999px;background:#fff;overflow:hidden;box-shadow:inset 0 2px 0 rgba(0,0,0,.06)}
+.progress i{display:block;height:100%;width:0;border-radius:999px;transition:width .8s cubic-bezier(.3,1.4,.5,1);
+  background:linear-gradient(90deg,#ef5b4c,#ff9a3c,#ffd23f,#3bbf6e,#4a90e2,#8e6cd8)}
+.sun{position:absolute;left:50%;top:12px;margin-left:-22px;width:44px;height:44px;border-radius:50%;border:0;padding:0;cursor:pointer;z-index:4;
+  background:radial-gradient(circle,#ffe66b,#ffc21a 70%);box-shadow:0 0 0 6px rgba(255,210,63,.35),0 0 24px rgba(255,200,40,.7);animation:sunpulse 2.4s ease-in-out infinite}
+@keyframes sunpulse{50%{box-shadow:0 0 0 12px rgba(255,210,63,.2),0 0 30px rgba(255,200,40,.8)}}
+.rainbow.double::after{content:"";position:absolute;inset:-34px;border-radius:200px 200px 0 0;opacity:.55;
+  background:radial-gradient(circle at 50% 100%,transparent 66%,#ef5b4c 66%,#ef5b4c 70%,#ff9a3c 70%,#ff9a3c 74%,#ffd23f 74%,#ffd23f 78%,#3bbf6e 78%,#3bbf6e 82%,#4a90e2 82%,#4a90e2 86%,#8e6cd8 86%,#8e6cd8 90%,transparent 90%)}
+.minibow{position:absolute;left:50%;bottom:40px;width:150px;height:75px;margin-left:-75px;border-radius:75px 75px 0 0;z-index:4;pointer-events:none;
+  background:radial-gradient(circle at 50% 100%,transparent 50%,#8e6cd8 50%,#8e6cd8 57%,#4a90e2 57%,#4a90e2 64%,#3bbf6e 64%,#3bbf6e 71%,#ffd23f 71%,#ffd23f 78%,#ff9a3c 78%,#ff9a3c 85%,#ef5b4c 85%,#ef5b4c 92%,transparent 92%);
+  animation:minibow 1.8s ease-out forwards}
+@keyframes minibow{0%{transform:scale(.2) translateY(30px);opacity:0}25%{transform:scale(1.05);opacity:1}70%{opacity:1}100%{transform:translateY(-30px) scale(1.1);opacity:0}}
+.word.rainbow-text span{animation:hopw .5s ease both}
+.word.rainbow-text span:nth-child(6n+1){color:#ef5b4c}.word.rainbow-text span:nth-child(6n+2){color:#ff9a3c}.word.rainbow-text span:nth-child(6n+3){color:#e0b000}
+.word.rainbow-text span:nth-child(6n+4){color:#3bbf6e}.word.rainbow-text span:nth-child(6n+5){color:#4a90e2}.word.rainbow-text span:nth-child(6n){color:#8e6cd8}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -166,9 +182,12 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex]:focus
     </div>
   </header>
 
+  <div class="progress" aria-hidden="true"><i id="progress"></i></div>
+
   <div class="scene" id="scene">
     <div class="rainbow" id="rainbow"></div>
     <button class="cloud c1" id="cloud1" aria-label="Tap the cloud to make it rain"></button>
+    <button class="sun" id="sun" aria-label="Tap the sun to make a rainbow"></button>
     <button class="cloud c2" id="cloud2" aria-label="Tap the cloud to make thunder"></button>
     <canvas id="rain"></canvas>
     <div class="grass"></div>
@@ -176,6 +195,7 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex]:focus
     <div class="strip" id="strip"></div>
     <div class="pip" id="pip" role="button" tabindex="0" aria-label="Pip the frog. Tap to tickle!">
       <svg id="pipSvg" class="idle" viewBox="0 0 120 130" aria-hidden="true">
+        <defs><linearGradient id="rbBoots" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ef5b4c"/><stop offset=".2" stop-color="#ff9a3c"/><stop offset=".4" stop-color="#ffd23f"/><stop offset=".6" stop-color="#3bbf6e"/><stop offset=".8" stop-color="#4a90e2"/><stop offset="1" stop-color="#8e6cd8"/></linearGradient></defs>
         <ellipse cx="22" cy="86" rx="9" ry="13" fill="var(--frog-dark)" transform="rotate(-30 22 86)"/>
         <ellipse cx="98" cy="86" rx="9" ry="13" fill="var(--frog-dark)" transform="rotate(30 98 86)"/>
         <rect class="boot" x="30" y="100" width="26" height="28" rx="8" fill="var(--boots)"/>
@@ -242,7 +262,7 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex]:focus
 <div class="overlay" id="startScreen">
   <div class="start">
     <h2>Pip loves muddy puddles!</h2>
-    <p>Read each word out loud and Pip jumps into the next puddle. SPLASH! Tap the clouds to make it rain.</p>
+    <p>Read each word out loud and Pip jumps into the next puddle. SPLASH! Tap the clouds for rain and the sun for a rainbow!</p>
     <button class="go" id="goBtn">💦 Let's splash!</button>
     <p style="font-size:.95rem">Grown-ups: the browser will ask to use the microphone. Tap Allow.</p>
     <button class="icon-btn" id="startSetup">⚙︎ Change the words</button>
@@ -297,8 +317,9 @@ const NEXT=["Here comes the next puddle!","Ooh, a big muddy one! Read this!","I'
 const BOOTS=[["#ef5b4c","Red boots! Super speedy!"],["#4a90e2","Blue boots! Like the sky!"],["#8e6cd8","Purple boots! So sparkly!"],
   ["#ff7ac1","Pink boots! So pretty!"],["#2fbf71","Green boots! They match me!"],["#ff9a3c","Orange boots! Like a carrot!"],
   ["#26314a","Midnight boots! Super cool!"],["#ffffff","White boots! Uh oh, they'll get muddy!"],["#9b6a3c","Chocolate boots! Yum!"],
-  ["#00c2c7","Mermaid boots! Splishy!"],["#c0ff3c","Lime boots! So bright!"],["#ffd23f","Sunshine boots! My favorite!"]];
+  ["#00c2c7","Mermaid boots! Splishy!"],["#c0ff3c","Lime boots! So bright!"],["#ffd23f","Sunshine boots! My favorite!"],["url(#rbBoots)","RAINBOW boots! The best boots ever!"],["url(#rbBoots)","Rainbow boots! Every color at once!"]];
 const RAINY=["Pitter patter! Rain rain!","More rain means more puddles!","Wheee! Rainy day!"];
+const SUNNY=["The sun came out! Look, a rainbow!","Ooh, rainbow! So many colors!","Red, orange, yellow, green, blue, purple! Rainbow!"];
 const THUNDER=["BOOM! Thunder! Hee hee, that's loud!","Rumble rumble! Silly thunder!"];
 
 const $=id=>document.getElementById(id);
@@ -427,7 +448,7 @@ if(!reduce)requestAnimationFrame(sceneLoop);
 function splash(n=50){
   const x=sc.width/2,y=sc.height-30;
   for(let i=0;i<n;i++){const a=Math.PI+Math.random()*Math.PI;const sp=3+Math.random()*7;
-    splashBits.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,r:2+Math.random()*4,life:70,c:Math.random()<.65?"#7a5230":"#5a8fc0"})}
+    splashBits.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,r:2+Math.random()*4,life:70,c:streak>=3?pick(["#ef5b4c","#ff9a3c","#ffd23f","#3bbf6e","#4a90e2","#8e6cd8"]):(Math.random()<.65?"#7a5230":"#5a8fc0")})}
 }
 function mudScreen(n){
   if(!opts.mud||reduce)return;const layer=$("mudLayer");
@@ -435,17 +456,24 @@ function mudScreen(n){
     s.style.width=sz+"px";s.style.height=sz*.85+"px";s.style.left=Math.random()*(innerWidth-sz)+"px";s.style.top=Math.random()*(innerHeight*.8)+"px";
     s.style.animationDelay=(i*.08)+"s";layer.appendChild(s);setTimeout(()=>s.remove(),3200)}
 }
-function makeRain(){if(Date.now()<stormUntil)return;stormUntil=Date.now()+4500;$("cloud1").classList.remove("puff");void $("cloud1").offsetWidth;$("cloud1").classList.add("puff");
+function makeSun(){sunUntil=Date.now()+6000;stormUntil=0;rainLevel=0;setTimeout(()=>{if(active)rainLevel=25},6000);rainbowState();
+  tone([523,659,784,988,1175,1319],.09,"sine",.14);face("big");move("dance");const l=pick(SUNNY);talk(l);burst(60)}
+function makeRain(){sunUntil=0;if(Date.now()<stormUntil)return;stormUntil=Date.now()+4500;$("cloud1").classList.remove("puff");void $("cloud1").offsetWidth;$("cloud1").classList.add("puff");
   noise(1.5,3000,.25,"highpass");talk(pick(RAINY));look(0,-6)}
 function makeThunder(){$("cloud2").classList.remove("puff");void $("cloud2").offsetWidth;$("cloud2").classList.add("puff");
   const sc_=$("scene");sc_.classList.remove("flash");void sc_.offsetWidth;sc_.classList.add("flash");thunder();face("o");move("wobble");talk(pick(THUNDER));
   stormUntil=Math.max(stormUntil,Date.now()+3000);setTimeout(()=>{if(!judging)face("happy")},1200)}
-$("cloud1").onclick=makeRain;$("cloud2").onclick=makeThunder;
+$("cloud1").onclick=makeRain;$("sun").onclick=makeSun;$("cloud2").onclick=makeThunder;
 
 // ---------- game ----------
 function setStatus(t){$("status").textContent=t}
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
 function bump(id){const e=$(id);e.classList.add("bump");setTimeout(()=>e.classList.remove("bump"),200)}
+function setProgress(){$("progress").style.width=(queue.length?100*idx/queue.length:0)+"%"}
+let sunUntil=0;
+function rainbowState(){const rb=$("rainbow");const on=streak>=3||Date.now()<sunUntil;rb.classList.toggle("show",on);rb.classList.toggle("double",streak>=5)}
+setInterval(()=>{if(active)rainbowState()},500);
+function miniBow(){if(reduce)return;const m=document.createElement("div");m.className="minibow";$("scene").appendChild(m);setTimeout(()=>m.remove(),1900)}
 function updateHud(){$("score").textContent="💧 "+splashes;const s=$("streak");s.hidden=streak<2;s.textContent="🔥 "+streak;s.classList.toggle("fire",streak>=3)}
 
 function newGame(list){
@@ -453,7 +481,7 @@ function newGame(list){
   idx=0;splashes=0;streak=0;missed=[];active=true;wantMic=true;quickEnds=[];
   $("rainbow").classList.remove("show");rainLevel=25;
   $("done").hidden=true;$("game").hidden=false;$("controls").hidden=false;$("bubble").hidden=false;
-  buildPuddles();updateHud();showWord(true);startRec();
+  sunUntil=0;buildPuddles();updateHud();setProgress();rainbowState();showWord(true);startRec();
 }
 function showWord(first){
   tries=0;judging=false;
@@ -469,18 +497,18 @@ function correct(){
   if(judging||!active)return;judging=true;hush();
   if(tries===0){splashes++;streak++}else streak=0;
   updateHud();bump("score");
-  const card=$("card");card.classList.remove("wrong");void card.offsetWidth;card.classList.add("right");$("word").classList.add("jumpw");
+  const card=$("card");card.classList.remove("wrong");void card.offsetWidth;card.classList.add("right");$("word").classList.add("rainbow-text");
   tone([523,659,784],.08);ribbit();face("big");setStatus("Yes! 💧");
   const pip=$("pip");pip.classList.remove("jump");void pip.offsetWidth;pip.classList.add("jump");
   $("pd"+idx)&&$("pd"+idx).classList.add("done");
-  idx++;placeStrip(false);
-  setTimeout(()=>{
+  idx++;placeStrip(false);setProgress();
+  setTimeout(()=>{miniBow();rainbowState();
     const p=$("pd"+idx);if(p){p.classList.remove("hit");void p.offsetWidth;p.classList.add("hit")}
     splashSound();splash(streak>=3?90:55);
     let line=pick(CHEERS);
     if(streak>0&&streak%5===0){line=`${streak} in a row! MUDDY DANCE PARTY!`;move("dance");burst(200);mudScreen(10);stormUntil=Date.now()+3000;
       tone([523,659,784,659,523,659,784,1047],.11,"square",.09)}
-    else if(streak===3){line="Three in a row! Super splasher!";burst(100);mudScreen(5)}
+    else if(streak===3){line="Three in a row! A RAINBOW came out!";burst(100);mudScreen(5)}
     else{burst(40);if(Math.random()<.5)mudScreen(2)}
     talk(line);face("big");
     const giftTime=opts.gifts&&splashes>0&&tries===0&&splashes%4===0&&idx<queue.length;
@@ -489,7 +517,7 @@ function correct(){
 }
 function wrong(heard){
   const now=Date.now();if(now-lastWrong<1200)return;lastWrong=now;
-  tries++;streak=0;updateHud();
+  tries++;streak=0;updateHud();rainbowState();
   const card=$("card");card.classList.remove("right");void card.offsetWidth;card.classList.add("wrong");
   face(Math.random()<.5?"oops":"o");move("wobble");boing();look(-4,-3);
   if(tries>=3){
@@ -513,19 +541,19 @@ function showGift(){
   };
 }
 function skip(){if(!missed.includes(queue[idx]))missed.push(queue[idx]);streak=0;updateHud();try{speechSynthesis.cancel()}catch(e){}
-  idx++;placeStrip(false);judging=false;if(idx>=queue.length)finish();else showWord(false)}
+  idx++;placeStrip(false);setProgress();rainbowState();judging=false;if(idx>=queue.length)finish();else showWord(false)}
 function finish(){
   active=false;judging=true;stopRec();rainLevel=0;
-  $("rainbow").classList.add("show");
+  $("rainbow").classList.add("show","double");$("progress").style.width="100%";
   $("game").hidden=true;$("controls").hidden=true;$("done").hidden=false;
   $("doneText").textContent=`You splashed ${splashes} of ${queue.length} puddles on the first try! 💧`;
   const closet=store.get("closet",[]);const c=$("closet");c.innerHTML="";
-  if(closet.length)closet.forEach(col=>{const s=document.createElement("span");s.style.background=col;c.appendChild(s)});
+  if(closet.length)closet.forEach(col=>{const s=document.createElement("span");s.style.background=col.startsWith("url")?"linear-gradient(#ef5b4c,#ff9a3c,#ffd23f,#3bbf6e,#4a90e2,#8e6cd8)":col;c.appendChild(s)});
   else c.textContent="No new boots yet. Read 4 words in a row to get a present!";
   $("missed").textContent=missed.length?"Practice: "+missed.join(", "):"Every single word! You're a super splasher! 🎉";
   $("practice").hidden=!missed.length;
   face("big");move("dance");
-  const line="The rain stopped and look, a rainbow! You're the best puddle jumper ever! Ribbit!";talk(line);speak(line);
+  const line="The rain stopped and look, a DOUBLE rainbow! You're the best puddle jumper ever! Ribbit!";talk(line);speak(line);
   tone([523,659,784,1047,1319],.14);burst(240);setTimeout(()=>burst(180),700);
 }
 
