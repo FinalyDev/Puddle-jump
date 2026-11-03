@@ -149,6 +149,14 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex]:focus
 .finish .missed{font-family:var(--reader);font-size:1.25rem}
 .closet{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .closet span{width:30px;height:30px;border-radius:8px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.15)}
+/* Mic check box */
+.mic-check{background:#fff;border-radius:16px;padding:10px 14px;font-family:system-ui,sans-serif;font-size:.95rem;line-height:1.4;box-shadow:0 2px 0 rgba(0,0,0,.08);display:flex;flex-direction:column;gap:4px}
+.mic-check h3{margin:0;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mic-check .big{font-family:var(--reader);font-size:1.6rem;font-weight:700;min-height:1.3em;word-break:break-word}
+.mic-check .big.interim{color:var(--muted)}
+.mic-check .note{color:#b56b00}
+.mic-check ol{margin:0;padding-left:1.2em;color:var(--muted)}
+.dbg-ok{color:#1f8c51;font-weight:700}.dbg-warn{color:#b56b00;font-weight:700}.dbg-bad{color:#c2372a;font-weight:700}
 /* Rainbows */
 .progress{height:12px;border-radius:999px;background:#fff;overflow:hidden;box-shadow:inset 0 2px 0 rgba(0,0,0,.06)}
 .progress i{display:block;height:100%;width:0;border-radius:999px;transition:width .8s cubic-bezier(.3,1.4,.5,1);
@@ -246,6 +254,17 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex]:focus
     </div>
   </div>
 
+  <div class="mic-check" id="micCheck">
+    <h3>Mic check</h3>
+    <div>Mic: <span id="dbgState" class="dbg-warn">Not started</span></div>
+    <div>Hearing right now:</div>
+    <div class="big" id="dbgHeard">…</div>
+    <div class="note" id="dbgNote"></div>
+    <div id="dbgAlts" style="color:var(--muted)"></div>
+    <div>Last things heard:</div>
+    <ol id="dbgLog"></ol>
+  </div>
+
   <section id="done" class="finish" hidden>
     <h2>🌈 Every puddle splashed!</h2>
     <p class="status" id="doneText"></p>
@@ -281,6 +300,7 @@ button:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex]:focus
     <label class="opt"><input type="checkbox" id="talkOpt" checked> Pip talks out loud</label>
     <label class="opt"><input type="checkbox" id="giftOpt" checked> Surprise presents every 4 words</label>
     <label class="opt"><input type="checkbox" id="mudOpt" checked> Mud splats on the screen</label>
+    <label class="opt"><input type="checkbox" id="dbgOpt" checked> Show the mic check box</label>
     <p style="font-size:.9rem">The game listens on its own and moves on when it hears the word. "They got it" gives credit if the mic mishears. After 3 misses, Pip says the word to help.</p>
     <div class="row">
       <button class="btn primary" id="saveStart">Save &amp; start</button>
@@ -328,7 +348,7 @@ const store={get(k,d){try{const v=localStorage.getItem("pj_"+k);return v==null?d
 const pick=a=>a[Math.random()*a.length|0];
 
 let words=store.get("words",PRESETS["Pre-K"].split(" ").slice(0,12));
-let opts=Object.assign({shuffle:true,talk:true,gifts:true,mud:true},store.get("opts",{}));
+let opts=Object.assign({shuffle:true,talk:true,gifts:true,mud:true,dbg:true},store.get("opts",{}));
 let queue=[],idx=0,splashes=0,streak=0,tries=0,missed=[];
 let active=false,judging=false,lastWrong=0;
 
@@ -350,19 +370,28 @@ let rec=null,recRunning=false,wantMic=true,muted=false,micBlocked=false,base=0,l
 const BLOCKED="Pip can't hear you because the microphone is blocked. Tap the 🔒 or ⓘ next to the web address, set Microphone to Allow, then tap the Mic button.";
 if(!SR)showWarn("This browser can't listen. Use Chrome on a computer or Android, or Safari on iPhone/iPad. You can still play with the 👍 button.");
 else if(location.protocol==="file:")showWarn("The browser will keep asking for the mic while this is opened as a file. On a website (like GitHub Pages) it only asks once.");
+if(!SR)setTimeout(()=>dbgState("This browser has no speech recognition","bad"),0);
 function showWarn(t){const w=$("warnBox");w.textContent=t;w.hidden=false}
 function micUI(){const on=wantMic&&!micBlocked;$("mic").classList.toggle("on",on);$("micLabel").textContent=on?"Mic on":"Mic off";
   $("app").classList.toggle("listening",recRunning&&on&&!muted)}
 async function askMicPermission(){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return true;
   try{const s=await navigator.mediaDevices.getUserMedia({audio:true});s.getTracks().forEach(t=>t.stop());micBlocked=false;return true}
-  catch(e){micBlocked=true;showWarn(BLOCKED);micUI();return false}
+  catch(e){micBlocked=true;showWarn(BLOCKED);dbgState(e.name==="NotFoundError"?"No microphone found":"Mic permission was denied","bad");micUI();return false}
 }
 function startRec(){
   if(!SR||!active||!wantMic||micBlocked||recRunning)return;
   rec=new SR();rec.lang="en-US";rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=5;base=0;lastLen=0;
+  rec.onstart=()=>dbgState("Listening 👂","ok");
+  rec.onaudiostart=()=>dbgState("Mic is on, waiting for a voice…","ok");
+  rec.onspeechstart=()=>dbgState("Hearing a voice! 🗣️","ok");
   rec.onresult=e=>{
-    lastLen=e.results.length;if(muted||judging||!active)return;
+    lastLen=e.results.length;
+    // the mic check box shows everything, even what the game ignores
+    const last=e.results[e.results.length-1];const la=[];for(let j=0;j<last.length;j++)la.push(last[j].transcript.trim());
+    const ignored=muted?" (ignored, Pip was talking)":judging?" (ignored, between words)":"";
+    dbgHeard(la,last.isFinal,ignored);
+    if(muted||judging||!active)return;
     for(let i=Math.max(e.resultIndex,base);i<e.results.length;i++){
       const r=e.results[i];const alts=[];for(let j=0;j<r.length;j++)alts.push(r[j].transcript);
       const heard=alts[0].trim();if(!heard)continue;
@@ -371,23 +400,40 @@ function startRec(){
       if(r.isFinal)wrong(heard);
     }
   };
-  rec.onerror=e=>{if(e.error==="not-allowed"||e.error==="service-not-allowed"){micBlocked=true;showWarn(BLOCKED)}};
-  rec.onend=()=>{recRunning=false;micUI();if(!active||!wantMic||micBlocked)return;
+  rec.onerror=e=>{
+    const why={"no-speech":"Didn't hear anyone talk. Get closer to the mic.","audio-capture":"No microphone found on this device.",
+      "network":"Speech service needs internet. Check the Wi-Fi.","not-allowed":"Mic permission is blocked.",
+      "service-not-allowed":"Speech recognition is turned off. On iPhone/iPad: Settings → General → Keyboard → turn on Dictation, and turn on Siri.",
+      "language-not-supported":"English speech isn't available on this device.","aborted":"Paused."}[e.error]||("Problem: "+e.error);
+    if(e.error!=="aborted")dbgState(why,e.error==="no-speech"?"warn":"bad");
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){micBlocked=true;showWarn(e.error==="not-allowed"?BLOCKED:why)}
+  };
+  rec.onend=()=>{recRunning=false;micUI();if(!active||!wantMic||micBlocked){if(!wantMic)dbgState("Mic paused","warn");return}
+    dbgState("Restarting the mic…","warn");
     const now=Date.now();quickEnds=quickEnds.filter(t=>now-t<5000);quickEnds.push(now);
-    if(quickEnds.length>6){wantMic=false;micUI();setStatus("Tap Mic off to keep listening");return}
+    if(quickEnds.length>6){wantMic=false;micUI();setStatus("Tap Mic off to keep listening");dbgState("The mic kept stopping. Tap the Mic button to try again.","bad");return}
     setTimeout(startRec,250)};
-  try{rec.start();recRunning=true}catch(err){recRunning=false}
+  try{rec.start();recRunning=true;dbgState("Starting the mic…","warn")}catch(err){recRunning=false;dbgState("Couldn't start the mic: "+err.message,"bad")}
   micUI();
 }
 function stopRec(){if(rec){try{rec.abort()}catch(_){}}recRunning=false;micUI()}
-function hush(){muted=true;micUI()}
-function unhush(){base=lastLen;muted=false;micUI();if(active&&wantMic&&!recRunning)startRec()}
+function hush(){muted=true;micUI();if(recRunning)dbgState("Paused while Pip talks 🐸","warn")}
+function unhush(){base=lastLen;muted=false;micUI();if(recRunning)dbgState("Listening 👂","ok");if(active&&wantMic&&!recRunning)startRec()}
+function dbgState(t,kind){const el=$("dbgState");el.textContent=t;el.className="dbg-"+kind}
+function dbgHeard(alts,final,ignored){
+  const h=$("dbgHeard");h.textContent=(alts[0]||"…")+(final?"":" …");h.className=final?"final":"interim";
+  $("dbgNote").textContent=ignored;
+  const others=alts.slice(1).filter(Boolean);$("dbgAlts").textContent=others.length?"Maybe: "+others.join(" · "):"";
+  if(final&&alts[0]&&!ignored){const li=document.createElement("li");li.textContent=alts[0];const log=$("dbgLog");log.prepend(li);while(log.children.length>5)log.lastChild.remove()}
+}
 function norm(s){return s.toLowerCase().replace(/[.,!?;:"]/g,"").replace(/’/g,"'").trim()}
+function close(a,b){if(Math.abs(a.length-b.length)>1)return false;const d=[];for(let i=0;i<=a.length;i++){d[i]=[i];for(let j=1;j<=b.length;j++)d[i][j]=i?Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1)):j}return d[a.length][b.length]<=1}
 function matches(alts,target){
   const t=norm(target);const ok=new Set([t,...(HOMO[t]||[]).map(norm)]);
   for(const raw of alts){const s=norm(raw);if(!s)continue;
     if(ok.has(s)||ok.has(s.replace(/\s+/g,"")))return true;
-    const toks=s.split(/\s+/);if(toks.length<=4&&toks.some(x=>ok.has(x)))return true}
+    const toks=s.split(/\s+/);if(toks.length<=4&&toks.some(x=>ok.has(x)))return true
+    if(t.length>=4&&toks.length<=4&&toks.some(x=>close(x,t)))return true}
   return false;
 }
 
@@ -564,7 +610,7 @@ $("pip").addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preve
 
 // ---------- setup ----------
 function openSetup(){$("wordsInput").value=words.join(", ");$("shuffleOpt").checked=opts.shuffle;$("talkOpt").checked=opts.talk;
-  $("giftOpt").checked=opts.gifts;$("mudOpt").checked=opts.mud;$("setup").hidden=false}
+  $("giftOpt").checked=opts.gifts;$("mudOpt").checked=opts.mud;$("dbgOpt").checked=opts.dbg;$("setup").hidden=false}
 function parseWords(t){return t.split(/[\s,;]+/).map(w=>w.trim()).filter(Boolean)}
 Object.keys(PRESETS).forEach(name=>{const b=document.createElement("button");b.textContent=name;
   b.onclick=()=>{$("wordsInput").value=PRESETS[name].split(" ").join(", ")};$("presets").appendChild(b)});
@@ -573,7 +619,7 @@ $("startSetup").onclick=openSetup;
 $("closeSetup").onclick=()=>{$("setup").hidden=true;if(active&&!judging)unhush()};
 $("saveStart").onclick=async()=>{
   const list=parseWords($("wordsInput").value);if(!list.length){$("wordsInput").focus();return}
-  words=list;opts={shuffle:$("shuffleOpt").checked,talk:$("talkOpt").checked,gifts:$("giftOpt").checked,mud:$("mudOpt").checked};
+  words=list;opts={shuffle:$("shuffleOpt").checked,talk:$("talkOpt").checked,gifts:$("giftOpt").checked,mud:$("mudOpt").checked,dbg:$("dbgOpt").checked};$("micCheck").hidden=!opts.dbg;
   store.set("words",words);store.set("opts",opts);
   $("setup").hidden=true;$("startScreen").hidden=true;stopRec();
   if(SR&&!micBlocked)await askMicPermission();
@@ -618,6 +664,7 @@ function loop(){
   bits=bits.filter(b=>b.life>0&&b.y<cc.height+20);
   raf=bits.length?requestAnimationFrame(loop):(cx.clearRect(0,0,cc.width,cc.height),null);
 }
+$("micCheck").hidden=!opts.dbg;
 // preview behind the start screen
 queue=words.slice();idx=0;buildPuddles();showWord(true);micUI();
 })();
